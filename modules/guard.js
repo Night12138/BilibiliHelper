@@ -1,5 +1,6 @@
 const got = require('../utils/got')
 const got_unsafe = require('got')
+const chalk = require('chalk')
 const config = require('../utils/config')
 const logger = require('../utils/logger')
 const share = require('../utils/share').guard
@@ -28,7 +29,8 @@ const main = async () => {
   if (uid === '') throw new Error('uid获取失败')
 
   // 获取列表
-  const list = await getGuardList(uid)
+  const list = await getGuardLocal()
+  // const list = await getGuardList(uid)
 
   const originList = list.filter(item => !list_cache.includes(item.GuardId))
   if (list_cache.length > 10000) list_cache.splice(0, 9000)
@@ -36,7 +38,12 @@ const main = async () => {
   for (const currentItem of originList) {
     const guardId = currentItem.GuardId
     const originRoomid = currentItem.OriginRoomId
+    const type = currentItem.Type;
 
+    if (list_cache.includes(guardId)) {
+      logger.notice(`guard：重复领取，已跳过`)
+      continue;
+    }
     // 记录已经检查过的 GuardId
     list_cache.push(guardId)
 
@@ -54,6 +61,12 @@ const main = async () => {
       continue
     }
 
+    const expireTime = currentItem.Time;
+    if (expireTime < Date.now()) {
+      logger.notice('guard：已经过期，跳过领取节省时间')
+      continue
+    }
+
     // 检测是否是真实存在的room
     const isTrueRoom = await checkTrueRoom(originRoomid)
     if (isTrueRoom) {
@@ -65,34 +78,179 @@ const main = async () => {
         share.lastGuardRoom = originRoomid
       }
 
-      const result = await getLottery(originRoomid, guardId)
+      const result = await getLottery(originRoomid, guardId, type)
 
       if (result.code === 0) {
-        logger.notice(`guard: ${originRoomid} 舰长经验领取成功，${result.msg}`)
-        continue
+        logger.notice(`guard: ${originRoomid} 舰长经验领取成功，${result.data.award_text}`)
+        //continue
       }
 
-      if (result.code === 400 && result.msg.includes('领取过')) {
+      else if (result.code === 400 && result.msg.includes('领取过')) {
         logger.notice(`guard: ${originRoomid} 舰长经验已经领取过`)
-        continue
+        // continue
       }
 
-      if (result.code) {
+      else if (result.code === 400 && result.msg.includes('早点')) {
+        logger.notice(`guard: ${originRoomid} 舰长经验已过期`)
+        // continue
+      }
+
+      else if (result.code) {
         throw new Error('guard: 舰长经验领取失败，稍后重试')
       }
     }
 
-    await sleep(5 * 1000 + Math.random() * 60 * 1000)
+    await sleep(500 + Math.random() * 2000)// + Math.random() * 60 * 1000
   }
 }
 
+async function getLiveList(page) {
+  // 获取房间列表，每页30个房间
+  try {
+    const response = await got_unsafe.get('https://api.live.bilibili.com/room/v3/Area/getRoomList', {
+      headers: {
+        'User-Agent': `Mozilla/5.0 BiliDroid/5.45.2 (bbcallen@gmail.com) os/android model/google Pixel 2 mobi_app/android build/5452100 channel/yingyongbao innerVer/5452100 osVer/5.1.1 network/2`
+      },
+      body: {
+        "page": page,
+        "page_size": 30
+      },
+      timeout: 20000,
+      json: true
+    });
+    return response.body;
+  } catch (error) {
+    console.log(error.response.body);
+    return false;
+  }
+}
+
+async function checkLottery(rid) {
+  // 检查礼物
+  try {
+    const response = await got_unsafe.get('https://api.live.bilibili.com/xlive/lottery-interface/v1/lottery/getLotteryInfo?roomid=' + rid, {
+      headers: {
+        'User-Agent': `Mozilla/5.0 BiliDroid/5.45.2 (bbcallen@gmail.com) os/android model/google Pixel 2 mobi_app/android build/5452100 channel/yingyongbao innerVer/5452100 osVer/5.1.1 network/2`
+      },
+      timeout: 20000,
+      json: true
+    });
+    return response.body;
+  } catch (error) {
+    console.log(error.response.body);
+    return false;
+  }
+}
+
+async function getGuardLocal() {
+  // 本地获取舰长列表，不清楚是否会触发bili的安全风险，例如封锁ip，但是所有的内容可以匿名获取，应该不会影响到账号
+  // 会大量占用网络资源，但是会比原始方法可能来的更加快速及准确，漏领几率低
+  logger.notice(`guard: 使用本地方法拉取舰长列表中`)
+
+  // 初始化计数，临时抓取一份列表读取总数
+  const tmpBody = await getLiveList(0);
+  let count = (tmpBody && tmpBody.code === 0) ? (tmpBody.data.count / 30) + 1 : -1;
+  if (count === -1) return false;
+
+  // 初始化异步数组，for数组用于forEach异步，flag用于异步完成的标记
+  let forArr = [];
+  let flagMain = 0;
+  for (let i = 0; i < count; ++i)forArr[i] = i;
+
+  // 初始化返回值
+  let retArr = [];
+
+  // 循环拉取信息，利用异步函数快速抓取
+  forArr.forEach(async (i) => {
+    const listBody = await getLiveList(i);
+
+    // 当拉取成功
+    if (listBody && listBody.code === 0) {
+
+      // 声明异步子状态
+      let flagAsync = 0;
+
+      // 获取该页房间列表
+      const backList = listBody.data.list;
+      backList.forEach(async (eachRoom) => {
+
+        // web_pendent有内容时，房间内有活动状态，大概率有舰长
+        if (eachRoom.web_pendent) {
+
+          // 获取房间的礼物信息
+          const lotteryBody = await checkLottery(eachRoom.roomid);
+
+          // 拉取成功
+          if (lotteryBody && lotteryBody.code === 0) {
+
+            // 声明异步子状态
+            let flagLottery = 0;
+
+            // 检查舰长信息
+            const guardInfo = lotteryBody.data.guard;
+            guardInfo.forEach(eachGuard => {
+              // 将舰长信息推入返回值
+              let tmp = { "GuardId": eachGuard.id, "OriginRoomId": eachRoom.roomid, "Type": eachGuard.keyword, "Time": Date.now() + eachGuard.time * 1000 };
+              retArr.push(tmp);
+              ++flagLottery;
+            })
+
+            // 等待异步完成
+            while (flagLottery != guardInfo.length) {
+              await sleep(100);
+            }
+          }
+          else {
+            if (config.get('debug') && lotteryBody) console.log(lotteryBody.msg);
+          }
+        }
+
+        ++flagAsync;
+      });
+
+      // 等待异步完成
+      while (flagAsync != backList.length) {
+        await sleep(100);
+      }
+    } else {
+      if (config.get('debug') && listBody) console.log(listBody.msg);
+    }
+
+    // 增加一次flag，表示该次异步已完成
+    ++flagMain;
+  });
+
+  // 等待异步完成
+  while (flagMain != forArr.length) {
+    await sleep(100);
+  }
+
+  retArr.sort((a, b) => (a.Time - b.Time))
+  if (config.get('debug')) console.log(chalk.gray(JSON.stringify(retArr)))
+  logger.notice(`guard: 拉取完成`)
+  return retArr;
+}
+
 async function getGuardList(uid) {
-  const { body } = await got_unsafe.get('http://118.25.108.153:8080/guard', {
+  let { body } = await got_unsafe.get('http://118.25.108.153:8080/guard', {
     headers: {
       'User-Agent': `bilibili-live-tools/${uid}`
     },
-    timeout: 20000,
-    json: true
+    timeout: 60000,
+    json: true,
+    hooks: {
+      beforeRequest: [
+        options => {
+          if (config.get('debug')) console.log(`${chalk.cyan('GET')} ${chalk.yellow('http://118.25.108.153:8080/guard')}`)
+        }
+      ],
+      afterResponse: [
+        response => {
+          if (config.get('debug')) console.log(chalk.gray(response.body))
+          return response
+        }
+      ]
+    }
   })
   return body
 }
@@ -117,7 +275,9 @@ async function goToRoom(roomId) {
     {
       body: {
         room_id: roomId,
-        csrf_token: csrfToken
+        csrf_token: csrfToken,
+        csrf: csrfToken,
+        platform: "android"
       },
       form: true,
       json: true
@@ -126,15 +286,17 @@ async function goToRoom(roomId) {
   return body
 }
 
-async function getLottery(roomId, guardId) {
+async function getLottery(roomId, guardId, type) {
   const { body } = await got.post(
-    'https://api.live.bilibili.com/lottery/v2/lottery/join',
+    'https://api.live.bilibili.com/xlive/lottery-interface/v3/guard/join',
     {
       body: {
-        roomid: roomId,
         id: guardId,
-        type: 'guard',
-        csrf_token: csrfToken
+        roomid: roomId,
+        type: type,
+        csrf_token: csrfToken,
+        csrf: csrfToken,
+        visit_id: ""
       },
       form: true,
       json: true
@@ -148,10 +310,16 @@ module.exports = () => {
   if (share.lock > Date.now()) return
   return main()
     .then(() => {
-      share.lock = Date.now() + 5 * 60 * 1000
+      const fastGetTime = [0, 11, 12, 13, 19, 20, 21, 22, 23]
+      if (fastGetTime.includes((new Date).getHours())) {
+        share.lock = Date.now() + 2 * 60 * 1000
+      } else {
+        share.lock = Date.now() + 5 * 60 * 1000
+      }
     })
     .catch(e => {
       logger.error(e.message)
-      share.lock = Date.now() + 60 * 60 * 1000
+      share.lock = Date.now() + 5 * 60 * 1000
+      // share.lock = Date.now() + 60 * 60 * 1000
     })
 }

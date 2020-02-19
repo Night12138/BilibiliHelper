@@ -8,6 +8,9 @@ module.exports = {
   },
   heart: {
     lock: 0,
+    webLock: 0,
+    appLock: 0,
+    beatLock: 0
   },
   dailybag: {
     lock_web: 0,
@@ -36,5 +39,10 @@ module.exports = {
   guard: {
     lock: 0,
     lastGuardRoom: 0
+  },
+  lottery: {
+    lock: 0,
+    lastRoom: [],
+    mainLock: 0,
   }
 }

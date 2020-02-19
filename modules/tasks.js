@@ -9,7 +9,7 @@ const sleep = require('../utils/sleep')
 const main = async () => {
   logger.info('检查每日任务')
 
-  let {body} = await got.get('https://api.live.bilibili.com/i/api/taskInfo', {json: true})
+  let { body } = await got.get('https://api.live.bilibili.com/i/api/taskInfo', { json: true })
   if (body.code) throw new Error('每日任务获取失败')
 
   share.count = 0
@@ -42,7 +42,7 @@ const check_double_watch_info = async data => {
     let payload = {
       task_id: 'double_watch_task',
     }
-    let {body} = await got.post('https://api.live.bilibili.com/activity/v1/task/receive_award', {
+    let { body } = await got.post('https://api.live.bilibili.com/activity/v1/task/receive_award', {
       body: sign(payload),
       form: true,
       json: true,
@@ -58,7 +58,7 @@ const check_double_watch_info = async data => {
 const check_sign_info = async () => {
   {
     logger.info('检查任务「每日签到」')
-    let {body} = await got.get('https://api.live.bilibili.com/sign/GetSignInfo', {json: true})
+    let { body } = await got.get('https://api.live.bilibili.com/sign/GetSignInfo', { json: true })
     if (body.code) throw new Error('任务「每日签到」获取失败')
     if (body.data.status) {
       logger.notice('「每日签到」奖励已经领取')
@@ -68,7 +68,7 @@ const check_sign_info = async () => {
   }
   {
     logger.info('正在尝试网页签到')
-    let {body} = await got.get('https://api.live.bilibili.com/sign/doSign', {json: true})
+    let { body } = await got.get('https://api.live.bilibili.com/sign/doSign', { json: true })
     if (body.code === 0 && body.message === 'OK') {
       logger.info(`签到成功，您已经连续签到 ${body.data.hadSignDays} 天，获得${body.data.text}${body.data.specialText}`)
       return
@@ -77,7 +77,7 @@ const check_sign_info = async () => {
   await sleep(2000)
   {
     logger.info('正在尝试客户端签到')
-    let {body} = await got.get('https://api.live.bilibili.com/appUser/getSignInfo', {query: sign({}), json: true})
+    let { body } = await got.get('https://api.live.bilibili.com/rc/v1/Sign/doSign', { query: sign({}), json: true })
     if (body.code === 0 && body.message === 'OK') {
       logger.info(`签到成功，您已经连续签到 ${body.data.hadSignDays} 天，获得${body.data.text}${body.data.specialText}`)
       return

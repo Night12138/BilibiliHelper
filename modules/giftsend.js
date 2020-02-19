@@ -39,6 +39,7 @@ const giftSend = async (data) => {
 
 const getBagList = async () => {
   let {body} = await got.get('https://api.live.bilibili.com/gift/v2/gift/bag_list', {query: sign({}), json: true})
+  console.log(JSON.stringify(body));
   if (body.code) throw new Error('背包查看失败')
   return body.data
 }
