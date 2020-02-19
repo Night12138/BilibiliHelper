@@ -6,6 +6,11 @@
 <img src="https://img.shields.io/badge/license-mit-blue.svg?longCache=true&style=for-the-badge">
 </p>
 
+# Clone Tip
+
+这个库源自 [metowolf/BilibiliHelper](https://github.com/metowolf/BilibiliHelper)
+个人修改了部分api，以及程序逻辑，增强可用和稳定性
+增加了直播抽奖的模块，可以对一些抽奖礼物进行抽奖（暂无节奏风暴的抽奖）
 
 # BilibiliHelper
 
@@ -15,12 +20,13 @@ B 站挂机实用脚本，[>> 点此返回 PHP 旧版](https://github.com/metowo
 
 |plugin      |version  |description   |
 |------------|---------|--------------|
-|Auth        |19.02.11 |帐号登录组件    |
+|Auth        |20.01.01 |帐号登录组件    |
 |Capsule     |19.02.12 |扭蛋机(普通)    |
 |DailyBag    |19.04.22 |每日礼包领取    |
 |Group       |19.02.11 |应援团签到     |
-|Guard       |19.05.03 |舰长亲密度领取  |
-|Heart       |19.02.11 |双端直播间心跳  |
+|Guard       |20.01.01 |舰长亲密度领取  |
+|Heart       |20.01.01 |双端直播间心跳  |
+|Lottery     |20.01.01 |直播间抽奖     |
 |Silver      |19.02.11 |免费宝箱领取    |
 |Silver2Coin |19.02.12 |银瓜子兑换硬币  |
 |Task        |19.02.11 |每日任务       |

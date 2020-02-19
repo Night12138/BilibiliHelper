@@ -39,5 +39,10 @@ module.exports = {
   guard: {
     lock: 0,
     lastGuardRoom: 0
+  },
+  lottery: {
+    lock: 0,
+    lastRoom: [],
+    mainLock: 0,
   }
 }
