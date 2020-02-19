@@ -10,7 +10,7 @@ const getPublicKey = async () => {
   logger.info('正在获取公钥')
 
   let payload = {}
-  let {body} = await got.post('https://passport.bilibili.com/api/oauth2/getKey', {
+  let { body } = await got.post('https://passport.bilibili.com/api/oauth2/getKey', {
     body: sign(payload),
     form: true,
     json: true,
@@ -30,23 +30,23 @@ const loginPassword = async () => {
   let password = crypto.publicEncrypt(
     {
       key: data.key,
-      padding: 1,
+      padding: crypto.constants.RSA_PKCS1_PADDING//1,
     },
     Buffer.from(`${data.hash}${config.get('password')}`) // eslint-disable-line
   ).toString('base64')
 
   let payload = {
-    seccode: '',
-    validate: '',
-    subid: 1,
-    permission: 'ALL',
+    // seccode: '',
+    // validate: '',
+    // subid: 1,
+    // permission: 'ALL',
     username,
     password,
-    captcha: '',
-    challenge: '',
+    // captcha: '',
+    // challenge: '',
   }
 
-  let {body} = await got.post('https://passport.bilibili.com/api/v3/oauth2/login', {
+  let { body } = await got.post('https://passport.bilibili.com/api/v3/oauth2/login', {
     body: sign(payload),
     form: true,
     json: true,
@@ -69,7 +69,7 @@ const refreshToken = async () => {
     access_token: config.get('access_token'),
     refresh_token: config.get('refresh_token'),
   }
-  let {body} = await got.post('https://passport.bilibili.com/api/oauth2/refreshToken', {
+  let { body } = await got.post('https://passport.bilibili.com/api/oauth2/refreshToken', {
     body: sign(payload),
     form: true,
     json: true,
@@ -93,7 +93,7 @@ const checkCookie = async () => {
   if (body.code !== 'REPONSE_OK') {
     logger.warning('检测到 Cookie 已经过期')
     logger.info('正在刷新 Cookie')
-    await got.get('https://passport.bilibili.com/api/login/sso', {query: sign({})})
+    await got.get('https://passport.bilibili.com/api/login/sso', { query: sign({}) })
     logger.notice('Cookie 刷新成功')
     await getUserInfo() // 获取UID，舰长经验检测有用到
   }
@@ -119,7 +119,7 @@ const checkToken = async () => {
   let payload = {
     access_token: config.get('access_token', ''),
   }
-  let {body} = await got.get('https://passport.bilibili.com/api/v2/oauth2/info', {
+  let { body } = await got.get('https://passport.bilibili.com/api/v2/oauth2/info', {
     query: sign(payload),
     json: true,
   })

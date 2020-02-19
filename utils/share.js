@@ -8,6 +8,9 @@ module.exports = {
   },
   heart: {
     lock: 0,
+    webLock: 0,
+    appLock: 0,
+    beatLock: 0
   },
   dailybag: {
     lock_web: 0,

@@ -38,7 +38,12 @@ const main = async () => {
   for (const currentItem of originList) {
     const guardId = currentItem.GuardId
     const originRoomid = currentItem.OriginRoomId
+    const type = currentItem.Type;
 
+    if (list_cache.includes(guardId)) {
+      logger.notice(`guard：重复领取，已跳过`)
+      continue;
+    }
     // 记录已经检查过的 GuardId
     list_cache.push(guardId)
 
@@ -56,6 +61,12 @@ const main = async () => {
       continue
     }
 
+    const expireTime = currentItem.Time;
+    if (expireTime < Date.now()) {
+      logger.notice('guard：已经过期，跳过领取节省时间')
+      continue
+    }
+
     // 检测是否是真实存在的room
     const isTrueRoom = await checkTrueRoom(originRoomid)
     if (isTrueRoom) {
@@ -67,29 +78,29 @@ const main = async () => {
         share.lastGuardRoom = originRoomid
       }
 
-      const result = await getLottery(originRoomid, guardId)
+      const result = await getLottery(originRoomid, guardId, type)
 
       if (result.code === 0) {
-        logger.notice(`guard: ${originRoomid} 舰长经验领取成功，${result.data.message}`)
-        continue
+        logger.notice(`guard: ${originRoomid} 舰长经验领取成功，${result.data.award_text}`)
+        //continue
       }
 
-      if (result.code === 400 && result.msg.includes('领取过')) {
+      else if (result.code === 400 && result.msg.includes('领取过')) {
         logger.notice(`guard: ${originRoomid} 舰长经验已经领取过`)
-        continue
+        // continue
       }
 
-      if (result.code === 400 && result.msg.includes('早点')) {
+      else if (result.code === 400 && result.msg.includes('早点')) {
         logger.notice(`guard: ${originRoomid} 舰长经验已过期`)
-        continue
+        // continue
       }
 
-      if (result.code) {
+      else if (result.code) {
         throw new Error('guard: 舰长经验领取失败，稍后重试')
       }
     }
 
-    await sleep(5 * 1000 + Math.random() * 60 * 1000)
+    await sleep(500 + Math.random() * 2000)// + Math.random() * 60 * 1000
   }
 }
 
@@ -104,6 +115,7 @@ async function getLiveList(page) {
         "page": page,
         "page_size": 30
       },
+      timeout: 20000,
       json: true
     });
     return response.body;
@@ -120,6 +132,7 @@ async function checkLottery(rid) {
       headers: {
         'User-Agent': `Mozilla/5.0 BiliDroid/5.45.2 (bbcallen@gmail.com) os/android model/google Pixel 2 mobi_app/android build/5452100 channel/yingyongbao innerVer/5452100 osVer/5.1.1 network/2`
       },
+      timeout: 20000,
       json: true
     });
     return response.body;
@@ -177,7 +190,7 @@ async function getGuardLocal() {
             const guardInfo = lotteryBody.data.guard;
             guardInfo.forEach(eachGuard => {
               // 将舰长信息推入返回值
-              let tmp = { "GuardId": eachGuard.id, "OriginRoomId": eachRoom.roomid };
+              let tmp = { "GuardId": eachGuard.id, "OriginRoomId": eachRoom.roomid, "Type": eachGuard.keyword, "Time": Date.now() + eachGuard.time * 1000 };
               retArr.push(tmp);
               ++flagLottery;
             })
@@ -209,9 +222,10 @@ async function getGuardLocal() {
 
   // 等待异步完成
   while (flagMain != forArr.length) {
-    await sleep(500);
+    await sleep(100);
   }
 
+  retArr.sort((a, b) => (a.Time - b.Time))
   if (config.get('debug')) console.log(chalk.gray(JSON.stringify(retArr)))
   logger.notice(`guard: 拉取完成`)
   return retArr;
@@ -261,7 +275,9 @@ async function goToRoom(roomId) {
     {
       body: {
         room_id: roomId,
-        csrf_token: csrfToken
+        csrf_token: csrfToken,
+        csrf: csrfToken,
+        platform: "android"
       },
       form: true,
       json: true
@@ -270,15 +286,17 @@ async function goToRoom(roomId) {
   return body
 }
 
-async function getLottery(roomId, guardId) {
+async function getLottery(roomId, guardId, type) {
   const { body } = await got.post(
-    'https://api.live.bilibili.com/lottery/v2/lottery/join',
+    'https://api.live.bilibili.com/xlive/lottery-interface/v3/guard/join',
     {
       body: {
-        roomid: roomId,
         id: guardId,
-        type: 'guard',
-        csrf_token: csrfToken
+        roomid: roomId,
+        type: type,
+        csrf_token: csrfToken,
+        csrf: csrfToken,
+        visit_id: ""
       },
       form: true,
       json: true
@@ -292,7 +310,12 @@ module.exports = () => {
   if (share.lock > Date.now()) return
   return main()
     .then(() => {
-      share.lock = Date.now() + 5 * 60 * 1000
+      const fastGetTime = [0, 11, 12, 13, 19, 20, 21, 22, 23]
+      if (fastGetTime.includes((new Date).getHours())) {
+        share.lock = Date.now() + 2 * 60 * 1000
+      } else {
+        share.lock = Date.now() + 5 * 60 * 1000
+      }
     })
     .catch(e => {
       logger.error(e.message)

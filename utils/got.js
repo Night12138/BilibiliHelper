@@ -8,12 +8,16 @@ const cookieJar = new CookieJar(new CookieStore('./.cookies'))
 
 const _got = got.extend({
   headers: {
-    'User-Agent': 'bili-universal/8470 CFNetwork/978.0.7 Darwin/18.5.0',
+    'User-Agent': 'Mozilla/5.0 BiliDroid/5.50.0 (bbcallen@gmail.com) os/android mobi_app/android build/5500300 innerVer/5500300',
     'Accept': '*/*',
     'Accept-Language': 'zh-cn',
     'Connection': 'keep-alive',
     'Content-Type': 'application/x-www-form-urlencoded',
-    'Referer': `https://live.bilibili.com/${config.get('room_id')}`,
+    "APP-KEY": "android",
+    "Buvid": "XZ6983A6F4481DC5090FB647F9D8FD67FE1B8",
+    "Device-ID": "GyMUJRwsTShJK0osUGJQYlA1VGAFMQEyBHgENFUwUTNSNAc0BTICOg08BQ",
+    "Display-ID": "478658766-1580326867",
+    // 'Referer': `https://live.bilibili.com/${config.get('room_id')}`,
   },
   cookieJar,
   timeout: 20000,
@@ -21,6 +25,8 @@ const _got = got.extend({
     beforeRequest: [
       options => {
         if (config.get('debug')) console.log(`${chalk.cyan(options.method)} ${chalk.yellow(options.href)}`)
+        if (options.method === "POST") console.log(chalk.gray(options.body))
+        if (options.method === "GET" && options.query) console.log(chalk.gray(JSON.stringify(options.query)))
       }
     ],
     afterResponse: [
